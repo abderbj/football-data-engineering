@@ -26,5 +26,11 @@ extract_data_from_wikipedia = PythonOperator(
     dag=dag,
 )
 
+transform_data_from_wikipedia = PythonOperator(
+    task_id="transform_wikipedia_data",
+    python_callable=transform_wikipedia_data,
+    provide_context=True,
+    dag=dag,
+)
 
 #write
