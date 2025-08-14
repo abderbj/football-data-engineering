@@ -1,5 +1,6 @@
-NO_IMAGE = 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/No-image-available.png/480px-No-image-available.png'
-
+﻿from datetime import datetime
+import pandas as pd
+import json
 
 def get_wikipidia_page(url):
     import requests
@@ -47,7 +48,19 @@ def get_wikipidia_data(html):
     print(f"Found {len(table_rows)} rows in the table")
     return table_rows
     
-import json
+
+def clean_text(text):
+    text = str(text).strip()
+    text = text.replace('&nbsp', '')
+    if text.find(' ♦'):
+        text = text.split(' ♦')[0]
+    if text.find('[') != -1:
+        text = text.split('[')[0]
+    if text.find(' (formerly)') != -1:
+        text = text.split(' (formerly)')[0]
+
+    return text.replace('\n', '')
+
 
 def extract_wikipedia_data(**kwargs):
     import pandas as pd
@@ -74,18 +87,6 @@ def extract_wikipedia_data(**kwargs):
     
     data = []
 
-    def clean_text(text):
-        text = str(text).strip()
-        text = text.replace('&nbsp;', '')
-        if text.find("♦"):
-            text = text.split("♦")[0]
-        if text.find("[") != -1:
-            text = text.split("[")[0]
-        if text.find(" (formerly)") != -1:
-            text = text.split(" (formerly)")[0]
-
-        return text.replace('\n', '')
-
     for i in range(1, len(rows)):
         tds = rows[i].find_all('td')
         if len(tds) < 7:
@@ -101,11 +102,15 @@ def extract_wikipedia_data(**kwargs):
             'home_team': clean_text(tds[6].text),
         }
         data.append(values)
+        data_df = pd.DataFrame(data)
+        data_df.to_csv("data/ouput.csv", index=False)
     json_rows = json.dumps(data)
     kwargs['ti'].xcom_push(key='rows', value=json_rows)
+    
     return "OK"
 
 def get_lat_long(country, city):
+    from geopy.geocoders import Nominatim
     geolocator = Nominatim(user_agent="geoapiExercises")
     location = geolocator.geocode(f"{city}, {country}")
     if location:
@@ -113,17 +118,23 @@ def get_lat_long(country, city):
     return None
 
 def transform_wikipedia_data(**kwargs):
-    import pandas as pd
-    data = kwargs['ti'].xcom_pull(task_ids='extract_data_from_wikipedia', key='rows')
+    print("transform_wikipedia_data started")
+    try:
+        data = kwargs['ti'].xcom_pull(task_ids='extract_data_from_wikipedia', key='rows')
+        data = json.loads(data)
+        stadium_df = pd.DataFrame(data)
+        stadium_df["images"] = stadium_df["images"].apply(lambda x: x if x not in [None, "NO_IMAGE", ''] else "NO_IMAGE")
+        stadium_df['capacity'] = stadium_df['capacity'].astype(int)
+        kwargs['ti'].xcom_push(key='rows', value=stadium_df.to_json())
+        return "Ok"
+    except Exception as e:
+        print(f"Error in transform_wikipedia_data: {e}")
+        raise
+
+def write_wikipedia_data(**kwargs):
+    data = kwargs['ti'].xcom_pull(task_ids='transform_wikipedia_data', key='rows')
+    
     data = json.loads(data)
-    stadium_df = pd.DataFrame(data)
-    stadium_df["images"] = stadium_df["images"].apply(lambda x: x if x not in [None, "NO_IMAGE", ''] else NO_IMAGE)
-    stadium_df['location'] = stadium_df.apply(lambda row: get_lat_long(row['country'], row['city']), axis=1)
-
-    duplicates = stadium_df.duplicated(['location'])
-    duplicates['location'] = duplicates.apply(lambda x: get_lat_long(x['country'], x['city']), axis=1)
-    stadium_df.update(duplicates)
-
-    kwargs['ti'].xcom_push(key='rows', value=stadium_df.to_json())
-
-    return "Ok"
+    data = pd.DataFrame(data)
+    file_name =("stadium_cleaned_" + str(datetime.now().date()) + "_" + str(datetime.now().time()).replace(':', ',') + ".csv")
+    data.to_csv('data/' + file_name, index=False)
