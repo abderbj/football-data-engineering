@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+venv/
+.env/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Airflow
+logs/
+airflow.db
+airflow.cfg
+unittests.cfg
+
+# Data
+*.csv
+*.tsv
+*.parquet
+*.db
+*.sqlite
+*.h5
+*.hdf5
+*.feather
+*.xls
+*.xlsx
+*.json
+*.zip
+*.gz
+*.tar
+*.tar.gz
+*.pkl
+*.pickle
+
+# Docker
+*.pid
+*.log
+
+# VSCode
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.bak
+*.swp
+*.swo
